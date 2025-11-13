@@ -1,11 +1,13 @@
-const CACHE_NAME = 'portier-audio-v2';
+const CACHE_NAME = 'portier-audio-v3';
 const urlsToCache = [
   '/',
   '/monitor',
   '/js/dashboard.js',
   '/js/monitor.js',
   '/manifest.json',
-  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
+  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
+  'https://cdn.jsdelivr.net/npm/vexflow@3.0.9/build/vexflow-min.js',
+  'https://unpkg.com/vexflow@3.0.9/build/vexflow-min.js'
 ];
 
 // Installation du service worker
@@ -17,6 +19,7 @@ self.addEventListener('install', (event) => {
         return cache.addAll(urlsToCache);
       })
   );
+  self.skipWaiting();
 });
 
 // Activation et nettoyage des anciens caches
@@ -33,6 +36,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  self.clients.claim();
 });
 
 // Interception des requêtes
