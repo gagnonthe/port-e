@@ -1,0 +1,53 @@
+/* Global professional look overrides */
+:root {
+  --bg: #ffffff;
+  --fg: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --primary-start: #4F46E5;
+  --primary-end: #7C3AED;
+  --card-bg: #ffffff;
+  --card-shadow: 0 8px 20px -8px rgba(0,0,0,0.15);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+
+.section-header h2 {
+  font-weight: 700;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+  border: none !important;
+  color: #fff !important;
+  box-shadow: 0 6px 14px -6px rgba(124, 58, 237, 0.6);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.03);
+}
+
+.status-badge {
+  border-radius: 9999px;
+  padding: 0.25rem 0.6rem;
+}
+
+#staffContainer {
+  padding: 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+/* Notification */
+#notification { border-radius: 12px !important; }

@@ -83,7 +83,14 @@ function setupEventListeners() {
 
 function initStaff() {
     const container = document.getElementById('staff');
-    if (!container || !window.Vex || !window.Vex.Flow) return;
+    if (!container) return;
+    if (!window.Vex || !window.Vex.Flow) {
+        // Afficher un message de diagnostic si VexFlow ne s'est pas chargé
+        container.innerHTML = '<div style="color:#9ca3af; font-size: 0.875rem; padding: 0.5rem;">Chargement de la notation musicale… (VexFlow)</div>';
+        // Réessayer après un court délai au cas où le CDN tarde
+        setTimeout(initStaff, 500);
+        return;
+    }
     VF = window.Vex.Flow;
     // Initial render with no note
     renderGrandStaff(null);

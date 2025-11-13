@@ -14,6 +14,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
 
+    <link rel="stylesheet" href="/styles.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
@@ -339,6 +340,19 @@
     </header>
 
     <main class="container">
+        <!-- Portée (Piano) en premier -->
+        <section class="section">
+            <div class="section-header">
+                <h2>🎼 Portée (Piano)</h2>
+            </div>
+            <div class="section-body">
+                <div id="staffContainer" style="width: 100%; overflow-x: auto;">
+                    <div id="staff" style="min-width: 520px;"></div>
+                </div>
+                <p class="text-xs text-gray-400" style="margin-top: 0.5rem;">La note détectée est positionnée automatiquement sur la clé de sol ou de fa selon sa hauteur.</p>
+            </div>
+        </section>
+
         <!-- Note Display -->
         <section class="section">
             <div class="section-header">
@@ -360,19 +374,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
-
-        <!-- Portée (Piano) -->
-        <section class="section">
-            <div class="section-header">
-                <h2>🎼 Portée (Piano)</h2>
-            </div>
-            <div class="section-body">
-                <div id="staffContainer" style="width: 100%; overflow-x: auto;">
-                    <div id="staff" style="min-width: 520px;"></div>
-                </div>
-                <p class="text-xs text-gray-400" style="margin-top: 0.5rem;">La note détectée est positionnée automatiquement sur la clé de sol ou de fa selon sa hauteur.</p>
             </div>
         </section>
 
@@ -414,8 +415,8 @@
     <!-- QRCode.js library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
-    <!-- VexFlow (notation musicale) -->
-    <script src="https://unpkg.com/vexflow/releases/vexflow-min.js"></script>
+    <!-- VexFlow (notation musicale) - version stable v3 -->
+    <script src="https://unpkg.com/vexflow@3.0.9/build/vexflow-min.js"></script>
 
     <!-- Socket.IO client -->
     <script src="/socket.io/socket.io.js"></script>
