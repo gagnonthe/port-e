@@ -363,6 +363,19 @@
             </div>
         </section>
 
+        <!-- Portée (Piano) -->
+        <section class="section">
+            <div class="section-header">
+                <h2>🎼 Portée (Piano)</h2>
+            </div>
+            <div class="section-body">
+                <div id="staffContainer" style="width: 100%; overflow-x: auto;">
+                    <div id="staff" style="min-width: 520px;"></div>
+                </div>
+                <p class="text-xs text-gray-400" style="margin-top: 0.5rem;">La note détectée est positionnée automatiquement sur la clé de sol ou de fa selon sa hauteur.</p>
+            </div>
+        </section>
+
         <!-- Monitor Link -->
         <section class="section">
             <div class="section-header">
@@ -400,6 +413,9 @@
 
     <!-- QRCode.js library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <!-- VexFlow (notation musicale) -->
+    <script src="https://unpkg.com/vexflow/releases/vexflow-min.js"></script>
 
     <!-- Socket.IO client -->
     <script src="/socket.io/socket.io.js"></script>

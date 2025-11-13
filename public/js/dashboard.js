@@ -2,11 +2,14 @@
 let socket;
 let qrCodeInstance;
 let SERVER_URL;
+let VF; // VexFlow namespace
+let staffRenderer = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initSocket();
     initQRCode();
+    initStaff();
     setupEventListeners();
 });
 
@@ -39,6 +42,9 @@ function initSocket() {
     socket.on('note-update', (data) => {
         console.log('Nouvelle note reçue:', data);
         updateNoteDisplay(data);
+        if (data && data.note) {
+            renderNoteOnStaff(data.note);
+        }
     });
     
     // Mise à jour de la liste des appareils
@@ -73,6 +79,107 @@ function setupEventListeners() {
         // Demander une mise à jour (optionnel)
         showNotification('🔄 Actualisation...', 'info');
     });
+}
+
+function initStaff() {
+    const container = document.getElementById('staff');
+    if (!container || !window.Vex || !window.Vex.Flow) return;
+    VF = window.Vex.Flow;
+    // Initial render with no note
+    renderGrandStaff(null);
+}
+
+function clearElement(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function renderGrandStaff(noteStr) {
+    const container = document.getElementById('staff');
+    if (!container) return;
+    clearElement(container);
+
+    const width = 500;
+    const height = 220;
+    const padding = 20;
+
+    const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
+    renderer.resize(width, height);
+    const context = renderer.getContext();
+    context.setFont('Arial', 10, '').setBackgroundFillStyle('#FFF');
+
+    const treble = new VF.Stave(padding, padding, width - padding * 2);
+    treble.addClef('treble');
+    treble.setContext(context).draw();
+
+    const bass = new VF.Stave(padding, padding + 90, width - padding * 2);
+    bass.addClef('bass');
+    bass.setContext(context).draw();
+
+    // Connectors (brace and lines)
+    const brace = new VF.StaveConnector(treble, bass);
+    brace.setType(VF.StaveConnector.type.BRACE);
+    brace.setContext(context).draw();
+
+    const lineLeft = new VF.StaveConnector(treble, bass);
+    lineLeft.setType(VF.StaveConnector.type.SINGLE_LEFT);
+    lineLeft.setContext(context).draw();
+
+    const lineRight = new VF.StaveConnector(treble, bass);
+    lineRight.setType(VF.StaveConnector.type.SINGLE_RIGHT);
+    lineRight.setContext(context).draw();
+
+    if (noteStr) {
+        const clef = chooseClef(noteStr);
+        const key = toVFKey(noteStr);
+        const hasSharp = /#/.test(noteStr);
+
+        const note = new VF.StaveNote({ clef, keys: [key], duration: 'q' });
+        if (hasSharp) note.addAccidental(0, new VF.Accidental('#'));
+
+        const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
+        voice.addTickables([note]);
+
+        new VF.Formatter().joinVoices([voice]).format([voice], width - padding * 2 - 40);
+
+        if (clef === 'treble') {
+            voice.draw(context, treble);
+        } else {
+            voice.draw(context, bass);
+        }
+    }
+
+    staffRenderer = { renderer, context };
+}
+
+function renderNoteOnStaff(noteStr) {
+    if (!window.Vex || !window.Vex.Flow) return;
+    renderGrandStaff(noteStr);
+}
+
+function toVFKey(noteStr) {
+    // Convertit "A#4" -> "a#/4"
+    const m = /^([A-Ga-g])(#?)(-?\d+)$/.exec(noteStr);
+    if (!m) return 'c/4';
+    const letter = m[1].toLowerCase();
+    const sharp = m[2] ? '#' : '';
+    const oct = m[3];
+    return `${letter}${sharp}/${oct}`;
+}
+
+function noteToMidi(noteStr) {
+    const m = /^([A-Ga-g])(#?)(-?\d+)$/.exec(noteStr);
+    if (!m) return 60; // C4 par défaut
+    const name = m[1].toUpperCase() + (m[2] || '');
+    const oct = parseInt(m[3], 10);
+    const semis = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+    const semi = semis[name] ?? 0;
+    return 12 * (oct + 1) + semi;
+}
+
+function chooseClef(noteStr) {
+    const midi = noteToMidi(noteStr);
+    // C4 (60) et au-dessus -> treble, sinon -> bass
+    return midi >= 60 ? 'treble' : 'bass';
 }
 
 function updateConnectionStatus(connected) {
