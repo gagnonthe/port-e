@@ -1,0 +1,14 @@
+{
+  "name": "Portée",
+  "short_name": "Portée",
+  "description": "Application PWA de surveillance audio connectée.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "icons": [],
+  "categories": ["utilities", "productivity"],
+  "lang": "fr",
+  "dir": "ltr"
+}

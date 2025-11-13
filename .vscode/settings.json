@@ -1,0 +1,4 @@
+{
+    "github.copilot.chat.copilotDebugCommand.enabled": true,
+    "github.copilot.chat.terminalChatLocation": "terminal"
+}

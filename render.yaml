@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: portee
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    autoDeploy: true
+    plan: free
+    healthCheckPath: /health

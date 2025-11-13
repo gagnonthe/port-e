@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#111827">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Portée">
+    <title>Portée - Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #fff; 
+            color: #111; 
+            line-height: 1.5;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container { 
+            max-width: 48rem; 
+            margin: 0 auto; 
+            padding: 0 1rem;
+            width: 100%;
+        }
+        
+        @media (max-width: 640px) {
+            .container { padding: 0 0.75rem; }
+            main { padding: 1rem 0; }
+        }
+        
+        .sticky-header { 
+            position: sticky; 
+            top: 0; 
+            z-index: 40; 
+            border-bottom: 1px solid #e5e7eb; 
+            background: rgba(255,255,255,0.95); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        
+        .header-content { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0.75rem 0;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        h1 { 
+            font-size: 1rem; 
+            font-weight: 600;
+        }
+        
+        h2 { 
+            font-size: 0.875rem; 
+            font-weight: 600;
+        }
+        
+        @media (min-width: 768px) {
+            h1 { font-size: 1.125rem; }
+            h2 { font-size: 1rem; }
+        }
+        
+        .status-badge { 
+            font-size: 0.75rem; 
+            border: 1px solid #d1d5db; 
+            border-radius: 9999px; 
+            padding: 0.125rem 0.5rem; 
+            color: #6b7280;
+            white-space: nowrap;
+        }
+        
+        .status-badge.online { 
+            border-color: #10b981; 
+            color: #065f46; 
+            background: #d1fae5; 
+        }
+        
+        main { padding: 1.5rem 0; }
+        
+        .section { 
+            margin-bottom: 1.5rem; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            background: #fff;
+            overflow: hidden;
+        }
+        
+        .section-header { 
+            padding: 1rem; 
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        @media (max-width: 640px) {
+            .section-header { padding: 0.75rem; }
+            .section-body { padding: 0.75rem; }
+        }
+        
+        .section-body { padding: 1rem; }
+        
+        .score-display {
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+        
+        .score-value {
+            font-size: 4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #FF1493 0%, #7C3AED 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 1rem 0;
+        }
+        
+        .score-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .score-status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+        
+        .score-status.excellent { background: #d1fae5; color: #065f46; }
+        .score-status.good { background: #dbeafe; color: #1e40af; }
+        .score-status.average { background: #fef3c7; color: #92400e; }
+        .score-status.poor { background: #fee2e2; color: #991b1b; }
+        
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .analysis-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 0.5rem;
+        }
+        
+        .analysis-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .analysis-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-gray-400 { color: #9ca3af; }
+        .text-gray-600 { color: #4b5563; }
+        .hidden { display: none; }
+        
+        .device-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 0.5rem;
+        }
+        
+        .device-item { 
+            padding: 0.75rem; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        @media (max-width: 640px) {
+            .device-item { padding: 0.625rem; }
+        }
+        
+        .device-item:hover { background: #f9fafb; }
+        
+        .device-icon { 
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        
+        .device-info { 
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .device-name { 
+            font-weight: 500; 
+            font-size: 0.875rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .device-type { 
+            font-size: 0.75rem; 
+            color: #6b7280;
+        }
+        
+        .empty-state { 
+            text-align: center; 
+            padding: 1.5rem; 
+            font-size: 0.875rem; 
+            color: #9ca3af;
+        }
+        
+        button { 
+            padding: 0.375rem 0.75rem; 
+            border: 1px solid #d1d5db; 
+            border-radius: 0.375rem; 
+            background: #fff; 
+            font-size: 0.875rem; 
+            cursor: pointer; 
+            transition: background 0.15s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        button:hover { background: #f9fafb; }
+        button:active { transform: scale(0.98); }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+        
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        
+        #notification { 
+            position: fixed; 
+            top: 1rem; 
+            right: 1rem; 
+            max-width: 20rem; 
+            padding: 1rem; 
+            background: #111827; 
+            color: #fff; 
+            border-radius: 0.5rem; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+            transform: translateX(calc(100% + 2rem)); 
+            transition: transform 0.3s; 
+            z-index: 50;
+            word-break: break-word;
+        }
+        
+        @media (max-width: 640px) {
+            #notification {
+                left: 1rem;
+                right: 1rem;
+                max-width: none;
+                transform: translateY(-150%);
+            }
+            #notification.show {
+                transform: translateY(0);
+            }
+        }
+        
+        @media (min-width: 641px) {
+            #notification.show { 
+                transform: translateX(0); 
+            }
+        }
+        
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(0px, env(safe-area-inset-left));
+                padding-right: max(0px, env(safe-area-inset-right));
+            }
+            .container {
+                padding-left: max(1rem, env(safe-area-inset-left));
+                padding-right: max(1rem, env(safe-area-inset-right));
+            }
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .qr-code {
+            display: inline-block;
+            padding: 1rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .link-box {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            word-break: break-all;
+            color: #4F46E5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="sticky-header">
+        <div class="container header-content">
+            <h1>🚪 Portier Audio</h1>
+            <span id="device-status" class="status-badge">Déconnecté</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Score Display -->
+        <section class="section">
+            <div class="section-header">
+                <h2>📊 Score de l'environnement</h2>
+                <button id="refreshBtn" class="btn-primary">🔄 Actualiser</button>
+            </div>
+            <div class="section-body">
+                <div class="score-display">
+                    <div class="score-label">Note environnementale</div>
+                    <div class="score-value" id="scoreValue">--</div>
+                    <div class="score-status" id="scoreStatus">En attente de données</div>
+                    
+                    <div id="analysisDetails" class="hidden">
+                        <div class="analysis-grid">
+                            <div class="analysis-item">
+                                <div class="analysis-value" id="volumeLevel">--</div>
+                                <div class="analysis-label">Volume (dB)</div>
+                            </div>
+                            <div class="analysis-item">
+                                <div class="analysis-value" id="noiseLevel">--</div>
+                                <div class="analysis-label">Niveau de bruit</div>
+                            </div>
+                            <div class="analysis-item">
+                                <div class="analysis-value" id="frequencyRange">--</div>
+                                <div class="analysis-label">Fréquence</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Monitor Link -->
+        <section class="section">
+            <div class="section-header">
+                <h2>🎤 Accès au moniteur</h2>
+            </div>
+            <div class="section-body">
+                <p class="text-sm text-gray-600" style="margin-bottom: 1rem;">
+                    Scannez ce code QR ou utilisez le lien pour accéder au moniteur audio sur un autre appareil
+                </p>
+                <div class="qr-container">
+                    <div id="qrCode" class="qr-code"></div>
+                    <div class="link-box" id="monitorLink">--</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Devices Section -->
+        <section class="section">
+            <div class="section-header">
+                <h2>📱 Appareils connectés</h2>
+            </div>
+            <div class="section-body">
+                <div id="devicesList" class="device-list">
+                    <p class="empty-state">Aucun appareil connecté</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="notification"></div>
+
+    <!-- QRCode.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <!-- Socket.IO client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/sw-register.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

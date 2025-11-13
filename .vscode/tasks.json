@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Installer et démarrer le serveur",
+			"type": "shell",
+			"command": "npm install && npm start",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Démarrer serveur Portier Audio",
+			"type": "shell",
+			"command": "npm start",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Git Push Portée",
+			"type": "shell",
+			"command": "git add . && git commit -m \"Initial commit Portée PWA\" && git remote add origin https://github.com/gagnonthe/port-e.git && git push -u origin main",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
