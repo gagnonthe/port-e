@@ -115,7 +115,8 @@ async function startMonitoring() {
         });
         
         // Créer le contexte audio
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+        // Laisse le navigateur choisir le meilleur sample rate (évite certains appareils muets)
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioContext.createAnalyser();
         microphone = audioContext.createMediaStreamSource(stream);
 
@@ -206,12 +207,20 @@ function startPitchDetection() {
         if (!isMonitoring) return;
 
         analyser.getFloatTimeDomainData(timeDomainBuffer);
-        const result = detectPitchYIN(timeDomainBuffer, audioContext.sampleRate);
-        const freq = result && result.freq;
-        const prob = result && result.probability;
+        let result = detectPitchYIN(timeDomainBuffer, audioContext.sampleRate);
+        let freq = result && result.freq;
+        let prob = result && result.probability;
 
-        // Seuils de qualité pour éviter les fausses notes
-        if (freq && isFinite(freq) && freq > 20 && freq < 5000 && prob >= 0.85) {
+        // Fallback: si YIN ne trouve rien, essaie autocorrélation
+        if ((!freq || !isFinite(freq)) && audioContext) {
+            const ac = detectPitchAutocorr(timeDomainBuffer, audioContext.sampleRate);
+            if (ac && ac.freq) {
+                freq = ac.freq; prob = Math.max(prob || 0, ac.probability || 0.6);
+            }
+        }
+
+        // Seuils de qualité (un peu assouplis) pour éviter les fausses notes
+        if (freq && isFinite(freq) && freq > 20 && freq < 5000 && (prob || 0) >= 0.7) {
             // Lissage par médiane des N dernières fréquences
             freqHistory.push(freq);
             if (freqHistory.length > FREQ_HISTORY_SIZE) freqHistory.shift();
@@ -252,7 +261,7 @@ function detectPitchYIN(timeDomain, sampleRate) {
     }
 
     // Étape 3: seuil
-    const threshold = 0.1; // plus bas -> plus sensible
+    const threshold = 0.15; // légèrement plus permissif
     let tauEstimate = -1;
     for (let tau = 2; tau < yinBuffer.length; tau++) {
         if (yinBuffer[tau] < threshold) {
@@ -279,9 +288,37 @@ function detectPitchYIN(timeDomain, sampleRate) {
     let rms = 0;
     for (let i = 0; i < bufferSize; i++) rms += timeDomain[i] * timeDomain[i];
     rms = Math.sqrt(rms / bufferSize);
-    if (rms < 0.01) return { freq: null, probability: 0 };
+    if (rms < 0.005) return { freq: null, probability: 0 };
 
     return { freq, probability };
+}
+
+// Fallback: autocorrélation simple (probabilité moyenne)
+function detectPitchAutocorr(buffer, sampleRate) {
+    let size = buffer.length;
+    // Gate RMS
+    let rms = 0; for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
+    rms = Math.sqrt(rms / size);
+    if (rms < 0.005) return { freq: null, probability: 0 };
+
+    const autocorr = new Float32Array(size);
+    for (let lag = 0; lag < size; lag++) {
+        let sum = 0;
+        for (let i = 0; i < size - lag; i++) sum += buffer[i] * buffer[i + lag];
+        autocorr[lag] = sum;
+    }
+    let d = 0; while (d < size - 1 && autocorr[d] > autocorr[d + 1]) d++;
+    let maxPos = d, maxVal = -Infinity;
+    for (let i = d; i < size; i++) {
+        if (autocorr[i] > maxVal) { maxVal = autocorr[i]; maxPos = i; }
+    }
+    if (!isFinite(maxPos) || maxPos <= 1) return { freq: null, probability: 0 };
+    const x0 = autocorr[maxPos - 1] || 0, x1 = autocorr[maxPos], x2 = autocorr[maxPos + 1] || 0;
+    const shift = (x2 - x0) / (2 * (2 * x1 - x2 - x0));
+    const period = maxPos + shift;
+    const freq = sampleRate / period;
+    if (!isFinite(freq)) return { freq: null, probability: 0 };
+    return { freq, probability: 0.6 };
 }
 
 function frequencyToNote(frequency) {
