@@ -9,12 +9,16 @@ let animationId;
 let analysisInterval;
 let pitchInterval;
 let SERVER_URL;
+let filterHighpass, filterLowpass, filterNotch50; // anti-bruit/parasites
+let freqHistory = []; // lissage médian
+const FREQ_HISTORY_SIZE = 5;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initSocket();
     setupEventListeners();
     initVisualizer();
+    initA4Controls();
 });
 
 function initSocket() {
@@ -59,6 +63,27 @@ function setupEventListeners() {
     monitorButton.addEventListener('click', toggleMonitoring);
 }
 
+function initA4Controls() {
+    const a4El = document.getElementById('a4Value');
+    const down = document.getElementById('a4Down');
+    const up = document.getElementById('a4Up');
+    if (!a4El || !down || !up) return;
+    const render = () => { a4El.textContent = getA4Freq().toString(); };
+    render();
+    down.addEventListener('click', () => {
+        const cur = getA4Freq();
+        const next = Math.max(400, Math.min(480, Math.round(cur - 1)));
+        localStorage.setItem('A4_TUNING', String(next));
+        render();
+    });
+    up.addEventListener('click', () => {
+        const cur = getA4Freq();
+        const next = Math.max(400, Math.min(480, Math.round(cur + 1)));
+        localStorage.setItem('A4_TUNING', String(next));
+        render();
+    });
+}
+
 function initVisualizer() {
     const visualizer = document.getElementById('audioVisualizer');
     // Créer 32 barres pour le visualiseur
@@ -82,22 +107,41 @@ async function startMonitoring() {
         // Demander l'accès au microphone
         const stream = await navigator.mediaDevices.getUserMedia({ 
             audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: false
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                channelCount: 1
             } 
         });
         
         // Créer le contexte audio
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
         analyser = audioContext.createAnalyser();
         microphone = audioContext.createMediaStreamSource(stream);
-        
-        analyser.fftSize = 2048; // meilleure résolution temporelle pour la détection de pitch
+
+        // Chaîne de filtres pour limiter les parasites (meilleure précision)
+        filterHighpass = audioContext.createBiquadFilter();
+        filterHighpass.type = 'highpass';
+        filterHighpass.frequency.value = 20; // enlever DC & infra
+
+        filterNotch50 = audioContext.createBiquadFilter();
+        filterNotch50.type = 'notch';
+        filterNotch50.frequency.value = 50; // 50Hz secteur FR
+        filterNotch50.Q.value = 30;
+
+        filterLowpass = audioContext.createBiquadFilter();
+        filterLowpass.type = 'lowpass';
+        filterLowpass.frequency.value = 5000; // au-delà peu utile pour pitch piano
+
+        analyser.fftSize = 4096; // plus de points -> meilleure YIN
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
-        
-        microphone.connect(analyser);
+
+        // Connecter: mic -> highpass -> notch50 -> lowpass -> analyser
+        microphone.connect(filterHighpass);
+        filterHighpass.connect(filterNotch50);
+        filterNotch50.connect(filterLowpass);
+        filterLowpass.connect(analyser);
         
         isMonitoring = true;
         updateMonitorUI(true);
@@ -162,9 +206,18 @@ function startPitchDetection() {
         if (!isMonitoring) return;
 
         analyser.getFloatTimeDomainData(timeDomainBuffer);
-        const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate);
-        if (freq && isFinite(freq) && freq > 20 && freq < 5000) {
-            const noteInfo = frequencyToNote(freq);
+        const result = detectPitchYIN(timeDomainBuffer, audioContext.sampleRate);
+        const freq = result && result.freq;
+        const prob = result && result.probability;
+
+        // Seuils de qualité pour éviter les fausses notes
+        if (freq && isFinite(freq) && freq > 20 && freq < 5000 && prob >= 0.85) {
+            // Lissage par médiane des N dernières fréquences
+            freqHistory.push(freq);
+            if (freqHistory.length > FREQ_HISTORY_SIZE) freqHistory.shift();
+            const smoothFreq = median(freqHistory);
+
+            const noteInfo = frequencyToNote(smoothFreq);
             // Envoyer au serveur: note en temps réel
             socket.emit('note-data', noteInfo);
 
@@ -175,59 +228,64 @@ function startPitchDetection() {
     }, 150);
 }
 
-// Détection de pitch par autocorrélation simple
-function detectPitch(buffer, sampleRate) {
-    // Normaliser (enlever DC offset)
-    let size = buffer.length;
-    let rms = 0;
-    for (let i = 0; i < size; i++) {
-        const val = buffer[i];
-        rms += val * val;
-    }
-    rms = Math.sqrt(rms / size);
-    if (rms < 0.01) return null; // trop silencieux
+// Détection de pitch via YIN (plus robuste que l'autocorrélation simple)
+function detectPitchYIN(timeDomain, sampleRate) {
+    const bufferSize = timeDomain.length;
+    const yinBuffer = new Float32Array(bufferSize / 2);
 
-    let r1 = 0, r2 = size - 1, thres = 0.2;
-    for (let i = 0; i < size / 2; i++) {
-        if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
-    }
-    for (let i = 1; i < size / 2; i++) {
-        if (Math.abs(buffer[size - i]) < thres) { r2 = size - i; break; }
-    }
-    buffer = buffer.slice(r1, r2);
-    size = buffer.length;
-
-    const autocorr = new Float32Array(size);
-    for (let lag = 0; lag < size; lag++) {
+    // Étape 1: différence cumulée
+    for (let tau = 1; tau < yinBuffer.length; tau++) {
         let sum = 0;
-        for (let i = 0; i < size - lag; i++) {
-            sum += buffer[i] * buffer[i + lag];
+        for (let i = 0; i < yinBuffer.length; i++) {
+            const delta = timeDomain[i] - timeDomain[i + tau];
+            sum += delta * delta;
         }
-        autocorr[lag] = sum;
+        yinBuffer[tau] = sum;
+    }
+    yinBuffer[0] = 1;
+
+    // Étape 2: normalisation cumulée
+    let runningSum = 0;
+    for (let tau = 1; tau < yinBuffer.length; tau++) {
+        runningSum += yinBuffer[tau];
+        yinBuffer[tau] = yinBuffer[tau] * tau / runningSum;
     }
 
-    let d = 0; while (d < size && autocorr[d] > autocorr[d + 1]) d++;
-    let maxPos = d, maxVal = -1;
-    for (let i = d; i < size; i++) {
-        if (autocorr[i] > maxVal) {
-            maxVal = autocorr[i];
-            maxPos = i;
+    // Étape 3: seuil
+    const threshold = 0.1; // plus bas -> plus sensible
+    let tauEstimate = -1;
+    for (let tau = 2; tau < yinBuffer.length; tau++) {
+        if (yinBuffer[tau] < threshold) {
+            while (tau + 1 < yinBuffer.length && yinBuffer[tau + 1] < yinBuffer[tau]) {
+                tau++;
+            }
+            tauEstimate = tau;
+            break;
         }
     }
-    if (maxPos === 0) return null;
+    if (tauEstimate === -1) {
+        return { freq: null, probability: 0 };
+    }
 
-    // Interpolation parabolique pour une meilleure précision
-    const x0 = autocorr[maxPos - 1] || 0;
-    const x1 = autocorr[maxPos];
-    const x2 = autocorr[maxPos + 1] || 0;
-    const shift = (x2 - x0) / (2 * (2 * x1 - x2 - x0));
-    const period = maxPos + shift;
-    const frequency = sampleRate / period;
-    return frequency;
+    // Étape 4: interpolation parabolique
+    const x0 = yinBuffer[tauEstimate - 1];
+    const x1 = yinBuffer[tauEstimate];
+    const x2 = yinBuffer[tauEstimate + 1];
+    const betterTau = tauEstimate + (x2 - x0) / (2 * (2 * x1 - x2 - x0));
+
+    const freq = sampleRate / betterTau;
+    const probability = 1 - x1; // confiance approximative
+    // Filtre RMS pour éviter le silence
+    let rms = 0;
+    for (let i = 0; i < bufferSize; i++) rms += timeDomain[i] * timeDomain[i];
+    rms = Math.sqrt(rms / bufferSize);
+    if (rms < 0.01) return { freq: null, probability: 0 };
+
+    return { freq, probability };
 }
 
 function frequencyToNote(frequency) {
-    const A4 = 440;
+    const A4 = getA4Freq();
     const noteNumber = 12 * Math.log2(frequency / A4) + 69;
     const nearest = Math.round(noteNumber);
     const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -239,6 +297,18 @@ function frequencyToNote(frequency) {
         frequency: frequency,
         cents: cents
     };
+}
+
+function getA4Freq() {
+    const v = Number(localStorage.getItem('A4_TUNING'));
+    if (v && isFinite(v) && v > 400 && v < 480) return v;
+    return 440;
+}
+
+function median(arr) {
+    const a = [...arr].sort((x, y) => x - y);
+    const mid = Math.floor(a.length / 2);
+    return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
 }
 
 function analyzeAudioData(dataArray) {
