@@ -318,28 +318,24 @@
             </div>
         </section>
 
-        <!-- Metrics -->
+        <!-- Notes en temps réel -->
         <section class="section">
             <div class="section-header">
-                <h2>📈 Métriques en temps réel</h2>
+                <h2>🎵 Note en temps réel</h2>
             </div>
             <div class="section-body">
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <div class="metric-value" id="currentScore">--</div>
-                        <div class="metric-label">Score actuel</div>
+                        <div class="metric-value" id="currentNote">--</div>
+                        <div class="metric-label">Note</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value" id="volumeMetric">--</div>
-                        <div class="metric-label">Volume (dB)</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="noiseMetric">--</div>
-                        <div class="metric-label">Bruit</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="frequencyMetric">--</div>
+                        <div class="metric-value" id="currentFreq">--</div>
                         <div class="metric-label">Fréquence</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="currentCents">--</div>
+                        <div class="metric-label">Écart (cents)</div>
                     </div>
                 </div>
             </div>
@@ -348,7 +344,7 @@
         <!-- Analysis Log -->
         <section class="section">
             <div class="section-header">
-                <h2>📋 Historique des analyses</h2>
+                <h2>📋 Historique des notes</h2>
             </div>
             <div class="section-body">
                 <div id="analysisLog" style="max-height: 200px; overflow-y: auto;">
@@ -362,6 +358,9 @@
 
     <!-- Notification Toast -->
     <div id="notification"></div>
+
+    <!-- Config côté client (injectée par le serveur) -->
+    <script src="/config.js"></script>
 
     <!-- Socket.IO client -->
     <script src="/socket.io/socket.io.js"></script>

@@ -12,6 +12,15 @@ const PORT = process.env.PORT || 3000;
 // Servir les fichiers statiques
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Exposer une config côté client (permet de forcer une URL serveur publique si besoin)
+app.get('/config.js', (req, res) => {
+    const config = {
+        // PUBLIC_SERVER_URL peut être défini dans Render (ou autre) pour forcer les clients à se connecter à une URL donnée
+        SERVER_URL: process.env.PUBLIC_SERVER_URL || ''
+    };
+    res.type('application/javascript').send(`window.PORTER_CONFIG = ${JSON.stringify(config)};`);
+});
+
 // Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -28,8 +37,7 @@ app.get('/health', (req, res) => {
 
 // Gestion des connexions WebSocket
 let connectedDevices = new Map();
-let currentScore = null;
-let audioAnalysis = null;
+let currentNote = null; // { note, frequency, cents, timestamp }
 
 io.on('connection', (socket) => {
     console.log('Nouvel appareil connecté:', socket.id);
@@ -50,28 +58,25 @@ io.on('connection', (socket) => {
         
         console.log(`Appareil enregistré: ${deviceInfo.type} - ${deviceInfo.name}`);
         
-        // Si c'est un dashboard qui se connecte, envoyer le score actuel
-        if (data.type === 'dashboard' && currentScore !== null) {
-            socket.emit('score-update', {
-                score: currentScore,
-                analysis: audioAnalysis,
-                timestamp: new Date()
-            });
+        // Si c'est un dashboard qui se connecte, envoyer la note actuelle
+        if (data.type === 'dashboard' && currentNote !== null) {
+            socket.emit('note-update', currentNote);
         }
     });
 
-    // Recevoir les données audio du moniteur
-    socket.on('audio-data', (data) => {
-        console.log('Données audio reçues:', data);
-        currentScore = data.score;
-        audioAnalysis = data.analysis;
-        
-        // Transmettre aux dashboards
-        io.emit('score-update', {
-            score: data.score,
-            analysis: data.analysis,
+    // Recevoir les notes détectées depuis le moniteur
+    socket.on('note-data', (data) => {
+        // data: { note, frequency, cents }
+        console.log('Note détectée:', data);
+        currentNote = {
+            note: data.note || null,
+            frequency: data.frequency || null,
+            cents: data.cents || 0,
             timestamp: new Date()
-        });
+        };
+
+        // Diffuser aux dashboards
+        io.emit('note-update', currentNote);
     });
 
     // Commande de démarrage/arrêt depuis le dashboard

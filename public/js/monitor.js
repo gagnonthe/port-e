@@ -7,6 +7,8 @@ let dataArray;
 let isMonitoring = false;
 let animationId;
 let analysisInterval;
+let pitchInterval;
+let SERVER_URL;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,7 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initSocket() {
-    socket = io();
+    // Déterminer l'URL du serveur (priorité à la config injectée par /config.js)
+    SERVER_URL = (window.PORTER_CONFIG && window.PORTER_CONFIG.SERVER_URL) || window.location.origin;
+    socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
     
     socket.on('connect', () => {
         console.log('Moniteur connecté au serveur');
@@ -89,7 +93,7 @@ async function startMonitoring() {
         analyser = audioContext.createAnalyser();
         microphone = audioContext.createMediaStreamSource(stream);
         
-        analyser.fftSize = 256;
+        analyser.fftSize = 2048; // meilleure résolution temporelle pour la détection de pitch
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
         
@@ -99,7 +103,8 @@ async function startMonitoring() {
         updateMonitorUI(true);
         
         // Démarrer l'analyse
-        startAnalysis();
+        startAnalysis(); // métriques/visualiseur
+        startPitchDetection(); // notes en temps réel
         
         // Démarrer la visualisation
         visualize();
@@ -125,6 +130,9 @@ function stopMonitoring() {
     if (analysisInterval) {
         clearInterval(analysisInterval);
     }
+    if (pitchInterval) {
+        clearInterval(pitchInterval);
+    }
     
     isMonitoring = false;
     updateMonitorUI(false);
@@ -139,23 +147,98 @@ function startAnalysis() {
         
         analyser.getByteFrequencyData(dataArray);
         
-        // Calculer les métriques
+        // Calculer les métriques (conservé pour visualisation locale)
         const analysis = analyzeAudioData(dataArray);
         
-        // Calculer un score (0-100)
-        const score = calculateEnvironmentScore(analysis);
-        
-        // Envoyer au serveur
-        socket.emit('audio-data', {
-            score: score,
-            analysis: analysis
-        });
-        
-        // Mettre à jour l'UI locale
-        updateMetrics(score, analysis);
-        addToLog(score, analysis);
+        // Mettre à jour l'UI locale (métriques)
+        updateMetricsForDebug(analysis);
         
     }, 2000);
+}
+
+function startPitchDetection() {
+    const timeDomainBuffer = new Float32Array(analyser.fftSize);
+    pitchInterval = setInterval(() => {
+        if (!isMonitoring) return;
+
+        analyser.getFloatTimeDomainData(timeDomainBuffer);
+        const freq = detectPitch(timeDomainBuffer, audioContext.sampleRate);
+        if (freq && isFinite(freq) && freq > 20 && freq < 5000) {
+            const noteInfo = frequencyToNote(freq);
+            // Envoyer au serveur: note en temps réel
+            socket.emit('note-data', noteInfo);
+
+            // Mettre à jour l'UI locale (note)
+            updateNoteLocal(noteInfo);
+            addNoteToLog(noteInfo);
+        }
+    }, 150);
+}
+
+// Détection de pitch par autocorrélation simple
+function detectPitch(buffer, sampleRate) {
+    // Normaliser (enlever DC offset)
+    let size = buffer.length;
+    let rms = 0;
+    for (let i = 0; i < size; i++) {
+        const val = buffer[i];
+        rms += val * val;
+    }
+    rms = Math.sqrt(rms / size);
+    if (rms < 0.01) return null; // trop silencieux
+
+    let r1 = 0, r2 = size - 1, thres = 0.2;
+    for (let i = 0; i < size / 2; i++) {
+        if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
+    }
+    for (let i = 1; i < size / 2; i++) {
+        if (Math.abs(buffer[size - i]) < thres) { r2 = size - i; break; }
+    }
+    buffer = buffer.slice(r1, r2);
+    size = buffer.length;
+
+    const autocorr = new Float32Array(size);
+    for (let lag = 0; lag < size; lag++) {
+        let sum = 0;
+        for (let i = 0; i < size - lag; i++) {
+            sum += buffer[i] * buffer[i + lag];
+        }
+        autocorr[lag] = sum;
+    }
+
+    let d = 0; while (d < size && autocorr[d] > autocorr[d + 1]) d++;
+    let maxPos = d, maxVal = -1;
+    for (let i = d; i < size; i++) {
+        if (autocorr[i] > maxVal) {
+            maxVal = autocorr[i];
+            maxPos = i;
+        }
+    }
+    if (maxPos === 0) return null;
+
+    // Interpolation parabolique pour une meilleure précision
+    const x0 = autocorr[maxPos - 1] || 0;
+    const x1 = autocorr[maxPos];
+    const x2 = autocorr[maxPos + 1] || 0;
+    const shift = (x2 - x0) / (2 * (2 * x1 - x2 - x0));
+    const period = maxPos + shift;
+    const frequency = sampleRate / period;
+    return frequency;
+}
+
+function frequencyToNote(frequency) {
+    const A4 = 440;
+    const noteNumber = 12 * Math.log2(frequency / A4) + 69;
+    const nearest = Math.round(noteNumber);
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const name = names[(nearest + 1200) % 12];
+    const octave = Math.floor(nearest / 12) - 1;
+    const cents = 100 * (noteNumber - nearest);
+    return {
+        note: `${name}${octave}`,
+        frequency: frequency,
+        cents: cents
+    };
 }
 
 function analyzeAudioData(dataArray) {
@@ -273,14 +356,26 @@ function updateConnectionStatus(connected) {
     }
 }
 
-function updateMetrics(score, analysis) {
-    document.getElementById('currentScore').textContent = score;
-    document.getElementById('volumeMetric').textContent = analysis.volume + ' dB';
-    document.getElementById('noiseMetric').textContent = analysis.noise;
-    document.getElementById('frequencyMetric').textContent = analysis.frequency;
+function updateMetricsForDebug(analysis) {
+    // Ces métriques sont conservées à titre indicatif/local (non envoyées au dashboard)
+    const volEl = document.getElementById('volumeMetric');
+    const noiseEl = document.getElementById('noiseMetric');
+    const freqEl = document.getElementById('frequencyMetric');
+    if (volEl) volEl.textContent = `${analysis.volume} dB`;
+    if (noiseEl) noiseEl.textContent = analysis.noise;
+    if (freqEl) freqEl.textContent = analysis.frequency;
 }
 
-function addToLog(score, analysis) {
+function updateNoteLocal(noteInfo) {
+    const el = document.getElementById('currentNote');
+    const f = document.getElementById('currentFreq');
+    const c = document.getElementById('currentCents');
+    if (el) el.textContent = noteInfo.note || '--';
+    if (f) f.textContent = noteInfo.frequency ? `${noteInfo.frequency.toFixed(1)} Hz` : '--';
+    if (c) c.textContent = typeof noteInfo.cents === 'number' ? `${noteInfo.cents > 0 ? '+' : ''}${Math.round(noteInfo.cents)} cents` : '--';
+}
+
+function addNoteToLog(noteInfo) {
     const logContainer = document.getElementById('analysisLog');
     
     // Supprimer le message "Aucune analyse"
@@ -292,8 +387,8 @@ function addToLog(score, analysis) {
     const logEntry = document.createElement('div');
     logEntry.style.cssText = 'padding: 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem;';
     logEntry.innerHTML = `
-        <strong>${timestamp}</strong> - Score: <strong>${score}</strong> | 
-        Volume: ${analysis.volume} dB | Bruit: ${analysis.noise}
+        <strong>${timestamp}</strong> - Note: <strong>${noteInfo.note || '--'}</strong> 
+        (${noteInfo.frequency ? noteInfo.frequency.toFixed(1) : '--'} Hz, ${typeof noteInfo.cents === 'number' ? (noteInfo.cents > 0 ? '+' : '') + Math.round(noteInfo.cents) : '--'} cents)
     `;
     
     logContainer.insertBefore(logEntry, logContainer.firstChild);

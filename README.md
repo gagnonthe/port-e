@@ -1,22 +1,20 @@
-# Portier Audio - PWA
-
-Application Progressive Web App (PWA) de surveillance audio avec système de portier intelligent.
+Application Progressive Web App (PWA) de surveillance audio avec détection de notes musicales en temps réel (portier intelligent).
 
 ## 🎯 Fonctionnalités
 
-- **Dashboard (Portier)** : Page principale affichant le score environnemental en temps réel
-- **Moniteur Audio** : Page de capture et analyse audio de l'environnement
+- **Dashboard (Portier)** : Affiche la note musicale détectée en temps réel (ex: A4, C#3), la fréquence et l'écart en cents
+- **Moniteur Audio** : Capture et analyse l'audio, détecte la hauteur (pitch) et calcule la note en temps réel
 - **Communication en temps réel** : WebSocket pour la synchronisation entre appareils
 - **PWA** : Installation possible sur mobile et desktop
-- **Analyse audio** : Détection du volume, bruit et fréquences
+- **Analyse audio** : Détection de hauteur (pitch) par autocorrélation, mappage en notes musicales
 
 ## 📱 Structure
 
 ```
 portee/
 ├── public/
-│   ├── index.html          # Dashboard (Portier)
-│   ├── monitor.html        # Moniteur audio
+│   ├── index.html          # Dashboard (affichage des notes)
+│   ├── monitor.html        # Moniteur audio (détection des notes)
 │   ├── manifest.json       # Configuration PWA
 │   ├── sw.js              # Service Worker
 │   ├── js/
@@ -24,7 +22,7 @@ portee/
 │   │   ├── monitor.js     # Logique moniteur
 │   │   └── sw-register.js # Enregistrement SW
 │   └── icons/             # Icônes PWA
-├── server.js              # Serveur Node.js + Socket.IO
+├── server.js              # Serveur Node.js + Socket.IO (+ /config.js côté client)
 └── package.json
 ```
 
@@ -43,6 +41,8 @@ npm start
 3. Accéder aux pages :
    - Dashboard : http://localhost:3000
    - Moniteur : http://localhost:3000/monitor
+
+Le dashboard affiche la note détectée (ex: A4), la fréquence (Hz) et l'écart en cents.
 
 ## 💡 Utilisation
 
@@ -66,18 +66,14 @@ npm start
 - **PWA** : Service Worker, Web App Manifest
 - **QR Code** : QRCode.js
 
-## 📊 Calcul du Score
+## 🎵 Détection de note (pitch)
 
-Le score environnemental (0-100) est calculé selon :
-- Volume audio (décibels)
-- Niveau de bruit (variabilité)
-- Plage de fréquences dominante
+La détection de note utilise une autocorrélation simple sur le signal temporel pour estimer la fréquence fondamentale, puis convertit la fréquence en note MIDI (base A4=440Hz) et calcule l'écart en cents.
 
-Score :
-- 80-100 : Excellent ✅
-- 60-79 : Bon 👍
-- 40-59 : Moyen ⚠️
-- 0-39 : Faible ❌
+Affichage :
+- Note (ex: C4, A#3)
+- Fréquence (Hz)
+- Écart en cents (positif = au-dessus de la note, négatif = en-dessous)
 
 ## 🌐 Déploiement
 
@@ -99,6 +95,10 @@ git push -u origin main
 - Start Command: `node server.js`
 - Health Check Path: `/health`
 - Auto Deploy: On
+
+4) (Optionnel) Forcer l'URL serveur côté client
+
+Le serveur expose `/config.js` qui injecte `window.PORTER_CONFIG`. Sur Render, définissez la variable d'environnement `PUBLIC_SERVER_URL` (ex: `https://portee.onrender.com`). Les clients utiliseront cette URL pour le socket et pour le lien/QR du moniteur. Sans cette variable, l'origine de la page est utilisée.
 
 3) Option (Infra as Code): Render lira `render.yaml` automatiquement si vous l'activez
 

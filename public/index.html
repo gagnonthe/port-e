@@ -339,32 +339,24 @@
     </header>
 
     <main class="container">
-        <!-- Score Display -->
+        <!-- Note Display -->
         <section class="section">
             <div class="section-header">
-                <h2>📊 Score de l'environnement</h2>
+                <h2>🎵 Note détectée (temps réel)</h2>
                 <button id="refreshBtn" class="btn-primary">🔄 Actualiser</button>
             </div>
             <div class="section-body">
                 <div class="score-display">
-                    <div class="score-label">Note environnementale</div>
-                    <div class="score-value" id="scoreValue">--</div>
-                    <div class="score-status" id="scoreStatus">En attente de données</div>
-                    
-                    <div id="analysisDetails" class="hidden">
-                        <div class="analysis-grid">
-                            <div class="analysis-item">
-                                <div class="analysis-value" id="volumeLevel">--</div>
-                                <div class="analysis-label">Volume (dB)</div>
-                            </div>
-                            <div class="analysis-item">
-                                <div class="analysis-value" id="noiseLevel">--</div>
-                                <div class="analysis-label">Niveau de bruit</div>
-                            </div>
-                            <div class="analysis-item">
-                                <div class="analysis-value" id="frequencyRange">--</div>
-                                <div class="analysis-label">Fréquence</div>
-                            </div>
+                    <div class="score-label">Note musicale</div>
+                    <div class="score-value" id="noteValue">--</div>
+                    <div class="analysis-grid" style="margin-top: 1.5rem;">
+                        <div class="analysis-item">
+                            <div class="analysis-value" id="freqValue">--</div>
+                            <div class="analysis-label">Fréquence</div>
+                        </div>
+                        <div class="analysis-item">
+                            <div class="analysis-value" id="centsValue">--</div>
+                            <div class="analysis-label">Écart (cents)</div>
                         </div>
                     </div>
                 </div>
@@ -402,6 +394,9 @@
 
     <!-- Notification Toast -->
     <div id="notification"></div>
+
+    <!-- Config côté client (injectée par le serveur) -->
+    <script src="/config.js"></script>
 
     <!-- QRCode.js library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>

@@ -1,6 +1,7 @@
 // Dashboard JavaScript
 let socket;
 let qrCodeInstance;
+let SERVER_URL;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,7 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initSocket() {
-    socket = io();
+    // Déterminer l'URL du serveur (priorité à la config injectée par /config.js)
+    SERVER_URL = (window.PORTER_CONFIG && window.PORTER_CONFIG.SERVER_URL) || window.location.origin;
+
+    socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
     
     socket.on('connect', () => {
         console.log('Connecté au serveur');
@@ -31,10 +35,10 @@ function initSocket() {
         showNotification('⚠️ Connexion perdue', 'warning');
     });
     
-    // Recevoir les mises à jour de score
-    socket.on('score-update', (data) => {
-        console.log('Nouveau score reçu:', data);
-        updateScoreDisplay(data);
+    // Recevoir les mises à jour de note
+    socket.on('note-update', (data) => {
+        console.log('Nouvelle note reçue:', data);
+        updateNoteDisplay(data);
     });
     
     // Mise à jour de la liste des appareils
@@ -45,7 +49,7 @@ function initSocket() {
 }
 
 function initQRCode() {
-    const monitorUrl = window.location.origin + '/monitor';
+    const monitorUrl = SERVER_URL.replace(/\/$/, '') + '/monitor';
     const qrContainer = document.getElementById('qrCode');
     const linkBox = document.getElementById('monitorLink');
     
@@ -82,44 +86,20 @@ function updateConnectionStatus(connected) {
     }
 }
 
-function updateScoreDisplay(data) {
-    const scoreValue = document.getElementById('scoreValue');
-    const scoreStatus = document.getElementById('scoreStatus');
-    const analysisDetails = document.getElementById('analysisDetails');
-    
-    // Afficher le score
-    scoreValue.textContent = data.score;
-    
-    // Déterminer le statut
-    let status = '';
-    let statusClass = '';
-    
-    if (data.score >= 80) {
-        status = '✅ Excellent';
-        statusClass = 'excellent';
-    } else if (data.score >= 60) {
-        status = '👍 Bon';
-        statusClass = 'good';
-    } else if (data.score >= 40) {
-        status = '⚠️ Moyen';
-        statusClass = 'average';
-    } else {
-        status = '❌ Faible';
-        statusClass = 'poor';
-    }
-    
-    scoreStatus.textContent = status;
-    scoreStatus.className = 'score-status ' + statusClass;
-    
-    // Afficher les détails d'analyse si disponibles
-    if (data.analysis) {
-        analysisDetails.classList.remove('hidden');
-        document.getElementById('volumeLevel').textContent = data.analysis.volume || '--';
-        document.getElementById('noiseLevel').textContent = data.analysis.noise || '--';
-        document.getElementById('frequencyRange').textContent = data.analysis.frequency || '--';
-    }
-    
-    showNotification(`📊 Nouveau score: ${data.score}`, 'success');
+function updateNoteDisplay(data) {
+    const noteValue = document.getElementById('noteValue');
+    const freqValue = document.getElementById('freqValue');
+    const centsValue = document.getElementById('centsValue');
+
+    const note = data && data.note ? data.note : '--';
+    const freq = data && data.frequency ? `${data.frequency.toFixed(1)} Hz` : '--';
+    const cents = data && typeof data.cents === 'number' ? `${data.cents > 0 ? '+' : ''}${Math.round(data.cents)} cents` : '--';
+
+    noteValue.textContent = note;
+    freqValue.textContent = freq;
+    centsValue.textContent = cents;
+
+    showNotification(`🎵 Nouvelle note: ${note} (${freq})`, 'success');
 }
 
 function updateDevicesList(devices) {
