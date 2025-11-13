@@ -4,6 +4,8 @@ let qrCodeInstance;
 let SERVER_URL;
 let VF; // VexFlow namespace
 let staffRenderer = null;
+let vexflowRetryTimer = null;
+let vexflowTries = 0;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,10 +87,23 @@ function initStaff() {
     const container = document.getElementById('staff');
     if (!container) return;
     if (!window.Vex || !window.Vex.Flow) {
-        // Afficher un message de diagnostic si VexFlow ne s'est pas chargé
+        // Affiche un message et tente plusieurs fois pendant ~10s
         container.innerHTML = '<div style="color:#9ca3af; font-size: 0.875rem; padding: 0.5rem;">Chargement de la notation musicale… (VexFlow)</div>';
-        // Réessayer après un court délai au cas où le CDN tarde
-        setTimeout(initStaff, 500);
+        if (!vexflowRetryTimer) {
+            vexflowRetryTimer = setInterval(() => {
+                vexflowTries += 1;
+                if (window.Vex && window.Vex.Flow) {
+                    clearInterval(vexflowRetryTimer);
+                    vexflowRetryTimer = null;
+                    VF = window.Vex.Flow;
+                    renderGrandStaff(null);
+                } else if (vexflowTries > 20) { // ~10s à 500ms
+                    clearInterval(vexflowRetryTimer);
+                    vexflowRetryTimer = null;
+                    container.innerHTML = '<div style="color:#ef4444; font-size: 0.875rem; padding: 0.5rem;">Erreur: VexFlow n\'a pas pu être chargé. Vérifiez votre connexion réseau.</div>';
+                }
+            }, 500);
+        }
         return;
     }
     VF = window.Vex.Flow;
