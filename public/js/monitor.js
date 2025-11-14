@@ -9,9 +9,12 @@ let animationId;
 let analysisInterval;
 let pitchInterval;
 let SERVER_URL;
-let filterHighpass, filterLowpass, filterNotch50; // anti-bruit/parasites
+let filterHighpass, filterLowpass, filterNotch50, filterPianoBand; // anti-bruit/parasites + piano
 let freqHistory = []; // lissage médian
 const FREQ_HISTORY_SIZE = 5;
+let lastEnergy = 0; // pour détecter l'attaque
+const PIANO_MIN_FREQ = 27.5; // A0
+const PIANO_MAX_FREQ = 4186; // C8
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -130,19 +133,28 @@ async function startMonitoring() {
         filterNotch50.frequency.value = 50; // 50Hz secteur FR
         filterNotch50.Q.value = 30;
 
+        // Filtre passe-bande pour piano (27.5 Hz à 4186 Hz)
+        filterPianoBand = audioContext.createBiquadFilter();
+        filterPianoBand.type = 'bandpass';
+        filterPianoBand.frequency.value = 2000; // centre autour du piano
+        filterPianoBand.Q.value = 0.3; // large bande pour tout le spectre piano
+
         filterLowpass = audioContext.createBiquadFilter();
         filterLowpass.type = 'lowpass';
-        filterLowpass.frequency.value = 5000; // au-delà peu utile pour pitch piano
+        filterLowpass.frequency.value = 4200; // juste au-dessus de C8
 
         analyser.fftSize = 4096; // plus de points -> meilleure YIN
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
 
-        // Connecter: mic -> highpass -> notch50 -> lowpass -> analyser
+        // Connecter: mic -> highpass -> notch50 -> pianoBand -> lowpass -> analyser
         microphone.connect(filterHighpass);
         filterHighpass.connect(filterNotch50);
-        filterNotch50.connect(filterLowpass);
+        filterNotch50.connect(filterPianoBand);
+        filterPianoBand.connect(filterLowpass);
         filterLowpass.connect(analyser);
+        
+        lastEnergy = 0; // réinitialiser pour détection d'attaque
         
         isMonitoring = true;
         updateMonitorUI(true);
@@ -203,10 +215,29 @@ function startAnalysis() {
 
 function startPitchDetection() {
     const timeDomainBuffer = new Float32Array(analyser.fftSize);
+    const frequencyBuffer = new Uint8Array(analyser.frequencyBinCount);
+    
     pitchInterval = setInterval(() => {
         if (!isMonitoring) return;
 
         analyser.getFloatTimeDomainData(timeDomainBuffer);
+        analyser.getByteFrequencyData(frequencyBuffer);
+        
+        // Calculer l'énergie pour détecter l'attaque
+        let energy = 0;
+        for (let i = 0; i < timeDomainBuffer.length; i++) {
+            energy += timeDomainBuffer[i] * timeDomainBuffer[i];
+        }
+        energy = Math.sqrt(energy / timeDomainBuffer.length);
+        
+        // Détecter attaque: augmentation rapide d'énergie (typique du piano)
+        const energyIncrease = energy - lastEnergy;
+        const isAttack = energyIncrease > 0.02 && energy > 0.02;
+        lastEnergy = energy;
+        
+        // Ne détecter que lors de l'attaque (évite les fausses notes continues)
+        if (!isAttack) return;
+        
         let result = detectPitchYIN(timeDomainBuffer, audioContext.sampleRate);
         let freq = result && result.freq;
         let prob = result && result.probability;
@@ -219,20 +250,25 @@ function startPitchDetection() {
             }
         }
 
-        // Seuils de qualité (un peu assouplis) pour éviter les fausses notes
-        if (freq && isFinite(freq) && freq > 20 && freq < 5000 && (prob || 0) >= 0.7) {
-            // Lissage par médiane des N dernières fréquences
-            freqHistory.push(freq);
-            if (freqHistory.length > FREQ_HISTORY_SIZE) freqHistory.shift();
-            const smoothFreq = median(freqHistory);
+        // Limiter à la plage du piano et valider les harmoniques
+        if (freq && isFinite(freq) && freq >= PIANO_MIN_FREQ && freq <= PIANO_MAX_FREQ && (prob || 0) >= 0.65) {
+            // Validation harmonique: vérifier la présence d'harmoniques typiques du piano
+            const hasHarmonics = validatePianoHarmonics(freq, frequencyBuffer, audioContext.sampleRate);
+            
+            if (hasHarmonics) {
+                // Lissage par médiane des N dernières fréquences
+                freqHistory.push(freq);
+                if (freqHistory.length > FREQ_HISTORY_SIZE) freqHistory.shift();
+                const smoothFreq = median(freqHistory);
 
-            const noteInfo = frequencyToNote(smoothFreq);
-            // Envoyer au serveur: note en temps réel
-            socket.emit('note-data', noteInfo);
+                const noteInfo = frequencyToNote(smoothFreq);
+                // Envoyer au serveur: note en temps réel
+                socket.emit('note-data', noteInfo);
 
-            // Mettre à jour l'UI locale (note)
-            updateNoteLocal(noteInfo);
-            addNoteToLog(noteInfo);
+                // Mettre à jour l'UI locale (note)
+                updateNoteLocal(noteInfo);
+                addNoteToLog(noteInfo);
+            }
         }
     }, 150);
 }
@@ -346,6 +382,27 @@ function median(arr) {
     const a = [...arr].sort((x, y) => x - y);
     const mid = Math.floor(a.length / 2);
     return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+function validatePianoHarmonics(freq, frequencyData, sampleRate) {
+    // Vérifie la présence d'harmoniques typiques du piano (2f, 3f)
+    const binCount = frequencyData.length;
+    const binWidth = sampleRate / (2 * binCount);
+    
+    const getBinValue = (f) => {
+        const bin = Math.round(f / binWidth);
+        return (bin >= 0 && bin < binCount) ? frequencyData[bin] : 0;
+    };
+    
+    const fundamental = getBinValue(freq);
+    const harmonic2 = getBinValue(freq * 2);
+    const harmonic3 = getBinValue(freq * 3);
+    
+    // Le piano a des harmoniques forts: au moins un harmonique doit être présent
+    const hasStrong2nd = harmonic2 > fundamental * 0.3;
+    const hasStrong3rd = harmonic3 > fundamental * 0.2;
+    
+    return fundamental > 30 && (hasStrong2nd || hasStrong3rd);
 }
 
 function analyzeAudioData(dataArray) {

@@ -1,0 +1,190 @@
+/* Partition-inspired global style */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:wght@400;700&family=Inter:wght@400;600&display=swap');
+
+:root {
+  --bg: #F7F5EF;
+  --fg: #1A1A1A;
+  --fg-music: #2C2C2C;
+  --accent-blue: #1E2A59;
+  --accent-bordeaux: #6D1F2A;
+  --card-bg: #fff;
+  --card-shadow: 0 4px 24px -8px rgba(30,42,89,0.08);
+  --staff-shadow: 0 2px 12px -4px rgba(30,42,89,0.10);
+  --note-fill: #2C2C2C;
+  --note-hover: #6D1F2A;
+  --note-anim: cubic-bezier(.4,0,.2,1);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', Arial, sans-serif;
+  min-height: 100vh;
+}
+
+h1, h2, h3, .section-header h2 {
+  font-family: 'Cormorant', serif;
+  font-weight: 700;
+  color: var(--accent-blue);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.section {
+  border: none;
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  margin-bottom: 2rem;
+}
+
+.section-header {
+  padding: 1.2rem 1.5rem 0.5rem 1.5rem;
+  border-bottom: none;
+}
+
+.section-body {
+  padding: 1.5rem;
+}
+
+.status-badge {
+  border-radius: 9999px;
+  padding: 0.3rem 0.8rem;
+  background: #EDEDED;
+  color: var(--fg-music);
+  font-size: 0.95rem;
+  font-family: 'Inter', Arial, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-bordeaux) 100%);
+  border: none !important;
+  color: #fff !important;
+  font-family: 'Inter', Arial, sans-serif;
+  font-weight: 600;
+  box-shadow: 0 6px 14px -6px rgba(109,31,42,0.12);
+  border-radius: 8px;
+  padding: 0.5rem 1.2rem;
+  font-size: 1rem;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+#staffContainer {
+  padding: 1.2rem 0.5rem 1.5rem 0.5rem;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #F7F5EF 80%, #EDEDED 100%);
+  box-shadow: var(--staff-shadow);
+  position: relative;
+}
+
+/* SVG staff and notes */
+#staff svg {
+  width: 100% !important;
+  max-width: 600px;
+  display: block;
+  margin: 0 auto;
+  background: none;
+}
+
+.staff-line {
+  stroke: var(--fg-music);
+  stroke-width: 1.2;
+  opacity: 0.95;
+}
+
+.staff-shadow {
+  filter: drop-shadow(0 2px 8px rgba(30,42,89,0.10));
+}
+
+.note-head {
+  fill: var(--note-fill);
+  stroke: var(--fg-music);
+  stroke-width: 1.2;
+  rx: 7;
+  ry: 5;
+  transition: fill 0.2s var(--note-anim), transform 0.3s var(--note-anim);
+}
+
+.note-head:hover {
+  fill: var(--note-hover);
+  filter: brightness(1.2) drop-shadow(0 2px 8px var(--accent-bordeaux));
+  transform: scale(1.08);
+}
+
+.note-anim {
+  animation: noteFadeIn 0.7s var(--note-anim);
+}
+
+@keyframes noteFadeIn {
+  0% { opacity: 0; transform: translateY(-18px); }
+  60% { opacity: 1; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.ledger-line {
+  stroke: var(--fg-music);
+  stroke-width: 1.1;
+  opacity: 0.8;
+}
+
+/* Typography for music */
+.music-label, .metric-label, .analysis-label {
+  font-family: 'Cormorant', serif;
+  font-variant: small-caps;
+  color: var(--accent-bordeaux);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.metric-value, .analysis-value, #noteValue, #currentNote {
+  font-family: 'Cormorant', serif;
+  font-weight: 700;
+  color: var(--accent-blue);
+  font-size: 2.2rem;
+  letter-spacing: 0.03em;
+}
+
+.link-box {
+  background: #F7F5EF;
+  border: 1px solid #EDEDED;
+  color: var(--accent-blue);
+  font-family: 'Inter', Arial, sans-serif;
+  border-radius: 8px;
+  padding: 0.7rem;
+  font-size: 1rem;
+}
+
+.device-item {
+  background: #F7F5EF;
+  border-radius: 8px;
+  border: 1px solid #EDEDED;
+  box-shadow: 0 2px 8px -4px rgba(30,42,89,0.06);
+}
+
+.device-icon {
+  color: var(--accent-bordeaux);
+  font-size: 1.5rem;
+}
+
+#notification {
+  border-radius: 14px !important;
+  font-family: 'Inter', Arial, sans-serif;
+  background: var(--accent-blue);
+  color: #fff;
+  box-shadow: 0 8px 24px -8px rgba(30,42,89,0.18);
+}
+
+/* Grain effect for background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: url('https://www.transparenttextures.com/patterns/cream-paper.png');
+  opacity: 0.12;
+  z-index: 0;
+}

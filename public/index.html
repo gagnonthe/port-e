@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
 
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/style-partition.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
@@ -339,38 +339,38 @@
         </div>
     </header>
 
-    <main class="container">
+    <main class="container partition-bg partition-font">
         <!-- Portée (Piano) en premier -->
         <section class="section">
-            <div class="section-header">
+            <div class="section-header partition-staff">
                 <h2>🎼 Portée (Piano)</h2>
             </div>
-            <div class="section-body">
-                <div id="staffContainer" style="width: 100%; overflow-x: auto;">
-                    <div id="staff" style="min-width: 520px;"></div>
+            <div class="section-body partition-staff-container">
+                <div id="staffContainer">
+                    <div id="staff"></div>
                 </div>
-                <p class="text-xs text-gray-400" style="margin-top: 0.5rem;">La note détectée est positionnée automatiquement sur la clé de sol ou de fa selon sa hauteur.</p>
+                <p class="music-label" style="margin-top: 0.5rem;">La note détectée est positionnée automatiquement sur la clé de sol ou de fa selon sa hauteur.</p>
             </div>
         </section>
 
         <!-- Note Display -->
         <section class="section">
-            <div class="section-header">
+            <div class="section-header partition-notes">
                 <h2>🎵 Note détectée (temps réel)</h2>
                 <button id="refreshBtn" class="btn-primary">🔄 Actualiser</button>
             </div>
-            <div class="section-body">
+            <div class="section-body partition-notes-container">
                 <div class="score-display">
-                    <div class="score-label">Note musicale</div>
-                    <div class="score-value" id="noteValue">--</div>
+                    <div class="music-label score-label">Note musicale</div>
+                    <div class="score-value metric-value" id="noteValue">--</div>
                     <div class="analysis-grid" style="margin-top: 1.5rem;">
                         <div class="analysis-item">
                             <div class="analysis-value" id="freqValue">--</div>
-                            <div class="analysis-label">Fréquence</div>
+                            <div class="analysis-label music-label">Fréquence</div>
                         </div>
                         <div class="analysis-item">
                             <div class="analysis-value" id="centsValue">--</div>
-                            <div class="analysis-label">Écart (cents)</div>
+                            <div class="analysis-label music-label">Écart (cents)</div>
                         </div>
                     </div>
                 </div>
@@ -379,11 +379,11 @@
 
         <!-- Monitor Link -->
         <section class="section">
-            <div class="section-header">
+            <div class="section-header partition-monitor">
                 <h2>🎤 Accès au moniteur</h2>
             </div>
-            <div class="section-body">
-                <p class="text-sm text-gray-600" style="margin-bottom: 1rem;">
+            <div class="section-body partition-monitor-container">
+                <p class="music-label" style="margin-bottom: 1rem;">
                     Scannez ce code QR ou utilisez le lien pour accéder au moniteur audio sur un autre appareil
                 </p>
                 <div class="qr-container">
@@ -395,12 +395,12 @@
 
         <!-- Devices Section -->
         <section class="section">
-            <div class="section-header">
+            <div class="section-header partition-devices">
                 <h2>📱 Appareils connectés</h2>
             </div>
-            <div class="section-body">
+            <div class="section-body partition-devices-container">
                 <div id="devicesList" class="device-list">
-                    <p class="empty-state">Aucun appareil connecté</p>
+                    <p class="empty-state music-label">Aucun appareil connecté</p>
                 </div>
             </div>
         </section>

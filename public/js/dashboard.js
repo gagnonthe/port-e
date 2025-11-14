@@ -7,6 +7,8 @@ let staffRenderer = null;
 let vexflowRetryTimer = null;
 let vexflowTries = 0;
 let simpleStaffMode = false; // fallback sans librairie
+let noteHistory = []; // Historique des notes détectées
+const MAX_NOTES_ON_STAFF = 8; // Nombre max de notes affichées sur la portée
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -97,33 +99,33 @@ function initStaff() {
                     clearInterval(vexflowRetryTimer);
                     vexflowRetryTimer = null;
                     VF = window.Vex.Flow;
-                    renderGrandStaff(null);
+                    renderGrandStaff([]);
                 } else if (vexflowTries > 20) { // ~10s à 500ms
                     clearInterval(vexflowRetryTimer);
                     vexflowRetryTimer = null;
                     // Basculer en mode simple (SVG maison)
                     simpleStaffMode = true;
-                    renderSimpleGrandStaff(null);
+                    renderSimpleGrandStaff([]);
                 }
             }, 500);
         }
         return;
     }
     VF = window.Vex.Flow;
-    // Initial render with no note
-    renderGrandStaff(null);
+    // Initial render with empty notes array (displays both clefs)
+    renderGrandStaff([]);
 }
 
 function clearElement(el) {
     while (el.firstChild) el.removeChild(el.firstChild);
 }
 
-function renderGrandStaff(noteStr) {
+function renderGrandStaff(noteArray) {
     const container = document.getElementById('staff');
     if (!container) return;
     clearElement(container);
 
-    const width = 500;
+    const width = 600;
     const height = 220;
     const padding = 20;
 
@@ -153,23 +155,40 @@ function renderGrandStaff(noteStr) {
     lineRight.setType(VF.StaveConnector.type.SINGLE_RIGHT);
     lineRight.setContext(context).draw();
 
-    if (noteStr) {
-        const clef = chooseClef(noteStr);
-        const key = toVFKey(noteStr);
-        const hasSharp = /#/.test(noteStr);
+    // Afficher toutes les notes accumulées
+    if (noteArray && noteArray.length > 0) {
+        const trebleNotes = [];
+        const bassNotes = [];
+        
+        noteArray.forEach(noteStr => {
+            const clef = chooseClef(noteStr);
+            const key = toVFKey(noteStr);
+            const hasSharp = /#/.test(noteStr);
 
-        const note = new VF.StaveNote({ clef, keys: [key], duration: 'q' });
-        if (hasSharp) note.addAccidental(0, new VF.Accidental('#'));
-
-        const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
-        voice.addTickables([note]);
-
-        new VF.Formatter().joinVoices([voice]).format([voice], width - padding * 2 - 40);
-
-        if (clef === 'treble') {
-            voice.draw(context, treble);
-        } else {
-            voice.draw(context, bass);
+            const note = new VF.StaveNote({ clef, keys: [key], duration: 'q' });
+            if (hasSharp) note.addAccidental(0, new VF.Accidental('#'));
+            
+            if (clef === 'treble') {
+                trebleNotes.push(note);
+            } else {
+                bassNotes.push(note);
+            }
+        });
+        
+        // Rendre les notes de la clé de sol
+        if (trebleNotes.length > 0) {
+            const trebleVoice = new VF.Voice({ num_beats: trebleNotes.length, beat_value: 4 });
+            trebleVoice.addTickables(trebleNotes);
+            new VF.Formatter().joinVoices([trebleVoice]).format([trebleVoice], width - padding * 2 - 60);
+            trebleVoice.draw(context, treble);
+        }
+        
+        // Rendre les notes de la clé de fa
+        if (bassNotes.length > 0) {
+            const bassVoice = new VF.Voice({ num_beats: bassNotes.length, beat_value: 4 });
+            bassVoice.addTickables(bassNotes);
+            new VF.Formatter().joinVoices([bassVoice]).format([bassVoice], width - padding * 2 - 60);
+            bassVoice.draw(context, bass);
         }
     }
 
@@ -177,10 +196,20 @@ function renderGrandStaff(noteStr) {
 }
 
 function renderNoteOnStaff(noteStr) {
+    // Ajouter la note à l'historique
+    if (noteStr) {
+        noteHistory.push(noteStr);
+        // Limiter le nombre de notes (effet défilement)
+        if (noteHistory.length > MAX_NOTES_ON_STAFF) {
+            noteHistory.shift(); // Supprimer la plus ancienne
+        }
+    }
+    
+    // Rendre toutes les notes accumulées
     if (simpleStaffMode || !window.Vex || !window.Vex.Flow) {
-        renderSimpleGrandStaff(noteStr);
+        renderSimpleGrandStaff(noteHistory);
     } else {
-        renderGrandStaff(noteStr);
+        renderGrandStaff(noteHistory);
     }
 }
 
@@ -214,12 +243,12 @@ function chooseClef(noteStr) {
 // Fallback simple: rendu SVG maison
 // ------------------------------
 
-function renderSimpleGrandStaff(noteStr) {
+function renderSimpleGrandStaff(noteArray) {
     const container = document.getElementById('staff');
     if (!container) return;
     clearElement(container);
 
-    const width = 500;
+    const width = 600;
     const height = 220;
     const padding = 20;
     const lineSpacing = 12; // distance entre lignes
@@ -245,46 +274,70 @@ function renderSimpleGrandStaff(noteStr) {
 
     // Liaison verticale à gauche (simple)
     line(svg, padding - 6, trebleTop, padding - 6, bassTop + lineSpacing * 4, 2);
+    
+    // Afficher les clés de sol et de fa
+    drawClefSymbol(svg, padding + 10, trebleTop, 'treble');
+    drawClefSymbol(svg, padding + 10, bassTop, 'bass');
 
-    // Dessiner la note si disponible
-    if (noteStr) {
-        const clef = chooseClef(noteStr);
-        const pos = computeNoteYPosition(noteStr, { trebleTop, bassTop, lineSpacing, padding });
-        const cx = padding + 60; // position X fixe
-        const cy = pos.y;
-        // Note head (ellipse)
-        const ellipse = document.createElementNS(svgNS, 'ellipse');
-        ellipse.setAttribute('cx', cx);
-        ellipse.setAttribute('cy', cy);
-        ellipse.setAttribute('rx', 7);
-        ellipse.setAttribute('ry', 5);
-        ellipse.setAttribute('fill', '#111827');
-        svg.appendChild(ellipse);
+    // Dessiner toutes les notes accumulées
+    if (noteArray && noteArray.length > 0) {
+        const noteSpacing = Math.min(60, (width - padding * 2 - 80) / Math.max(1, noteArray.length));
+        
+        noteArray.forEach((noteStr, index) => {
+            const clef = chooseClef(noteStr);
+            const pos = computeNoteYPosition(noteStr, { trebleTop, bassTop, lineSpacing, padding });
+            const cx = padding + 50 + index * noteSpacing; // Espacement horizontal
+            const cy = pos.y;
+            
+            // Note head (ellipse) avec animation
+            const ellipse = document.createElementNS(svgNS, 'ellipse');
+            ellipse.setAttribute('cx', cx);
+            ellipse.setAttribute('cy', cy);
+            ellipse.setAttribute('rx', 7);
+            ellipse.setAttribute('ry', 5);
+            ellipse.setAttribute('fill', 'var(--note-fill, #2C2C2C)');
+            ellipse.setAttribute('class', 'note-head note-anim');
+            svg.appendChild(ellipse);
 
-        // Ledger lines si nécessaire (toutes les positions de ligne au-delà de la portée)
-        drawLedgerLines(svg, cx, noteStr, { trebleTop, bassTop, lineSpacing, padding });
+            // Ledger lines si nécessaire
+            drawLedgerLines(svg, cx, noteStr, { trebleTop, bassTop, lineSpacing, padding });
 
-        // Altération (dièse)
-        if (/#[0-9]?$/.test(noteStr)) {
-            const text = document.createElementNS(svgNS, 'text');
-            text.setAttribute('x', cx - 16);
-            text.setAttribute('y', cy + 4);
-            text.setAttribute('fill', '#111827');
-            text.setAttribute('font-size', '14');
-            text.setAttribute('font-family', 'Arial, sans-serif');
-            text.textContent = '#';
-            svg.appendChild(text);
-        }
+            // Altération (dièse)
+            if (/#[0-9]?$/.test(noteStr)) {
+                const text = document.createElementNS(svgNS, 'text');
+                text.setAttribute('x', cx - 16);
+                text.setAttribute('y', cy + 4);
+                text.setAttribute('fill', 'var(--fg-music, #2C2C2C)');
+                text.setAttribute('font-size', '14');
+                text.setAttribute('font-family', 'Arial, sans-serif');
+                text.textContent = '#';
+                svg.appendChild(text);
+            }
 
-        // Tige vers le haut / bas selon clé/position (simple)
-        const stemUp = clef === 'bass' || pos.step < 4; // dessous du milieu -> tige vers le haut
-        const stemX = stemUp ? cx + 7 : cx - 7;
-        const stemY1 = cy;
-        const stemY2 = stemUp ? cy - 30 : cy + 30;
-        line(svg, stemX, stemY1, stemX, stemY2, 2);
+            // Tige vers le haut / bas selon clé/position
+            const stemUp = clef === 'bass' || pos.step < 4;
+            const stemX = stemUp ? cx + 7 : cx - 7;
+            const stemY1 = cy;
+            const stemY2 = stemUp ? cy - 30 : cy + 30;
+            line(svg, stemX, stemY1, stemX, stemY2, 2);
+        });
     }
 
     container.appendChild(svg);
+}
+
+function drawClefSymbol(svg, x, y, clefType) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const text = document.createElementNS(svgNS, 'text');
+    text.setAttribute('x', x);
+    text.setAttribute('y', y + 40);
+    text.setAttribute('fill', 'var(--fg-music, #2C2C2C)');
+    text.setAttribute('font-size', clefType === 'treble' ? '48' : '36');
+    text.setAttribute('font-family', 'serif');
+    text.setAttribute('font-weight', 'bold');
+    // Utiliser des caractères Unicode pour les clés musicales
+    text.textContent = clefType === 'treble' ? '𝄞' : '𝄢'; // Treble clef, Bass clef
+    svg.appendChild(text);
 }
 
 function drawStaffLines(svg, x, topY, width, spacing) {
